@@ -12,11 +12,9 @@ install ffmopeg
 '''
 import sounddevice as sd
 import sys
-import threading
 import tkinter
 import numpy as np
 from queue import Queue
-
 import audio_processing as magic
 
 
@@ -30,17 +28,21 @@ sd.default.samplerate = RATE
 
 translationQueue = Queue(maxsize=5)
 audioQueue = Queue()
+outputQueue = Queue(maxsize=5)
 
 
 
 '''indata: ndarray, outdata: ndarray, frames: int,
          time: CData, status: CallbackFlags'''
-def callback(indata, outdata, frames, time, status):
+def callback(indata, frames, time, status):
+    
     if status:
         print(status)
 
     #continuously records audio until stopped, to be processed later into a single numpy array
     audioQueue.put(indata.copy())
+
+
 
 def finished_callback():
     #combining audio chunks into one array
@@ -54,33 +56,43 @@ def finished_callback():
     #put audio in for translation
     translationQueue.put(audioNdArray)
     #print(translationQueue.get().dtype)
-    magic.transcribe(translationQueue.get())
+    transcribed = magic.transcribe(translationQueue.get())
+    translated = magic.translate(transcribed, 'spanish')
+    magic.speech(translated)
 
 
 #audio stream (change to input only)
-stream = sd.Stream(callback = callback, finished_callback= finished_callback)
+inputStream = sd.InputStream(callback = callback, finished_callback= finished_callback)
+
+
 
 
 def startRecording(event):
     #add logic to prevent more audio while translation is in progress?
     #or seperate it into a queue?
-    if stream.active:
+    if inputStream.active:
         print("stream is already active")
         return
     
-    stream.start()
+    inputStream.start()
     print("started audio recording") 
 
 def stopRecording(event):
-    if not stream.active:
+    if not inputStream.active:
         print("stream is already inactive")
         return
     
-    stream.stop()
+    inputStream.stop()
     print("recording stopped")
 
     #method to translate here and output result
     #or maybe just put it in the finished callback? altho might conflict with queue
+
+
+
+
+
+
 
     
 #creates window for user input
