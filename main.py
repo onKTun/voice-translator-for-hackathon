@@ -15,6 +15,7 @@ import sys
 import wave
 import tkinter
 import numpy
+from queue import Queue
 
 
 CHUNK = 1024 #how many frames are in one chunk
@@ -23,7 +24,10 @@ CHANNELS = 1 if sys.platform == 'darwin' else 2
 RATE = 44100
 RECORD_SECONDS = 5
 
-toggle = True
+
+translationQueue = Queue(maxsize=5)
+audioQueue = Queue()
+
 
 
 '''indata: ndarray, outdata: ndarray, frames: int,
@@ -32,28 +36,46 @@ def callback(indata, outdata, frames, time, status):
     if status:
         print(status)
 
+    
 
-def toggleRecording():
- 
-    if not stream.active:
-        stream.start()
-        print("Audio stream is active and recording")
-    else:
-        stream.stop()
-        print("Audio stream is closed")
+    audioQueue.put(indata.copy())
 
+def finished_callback():
+    print(audioQueue.get())
 
-#audio stream
-stream = sd.Stream(callback = callback)
+#audio stream (change to input only)
+stream = sd.Stream(callback = callback, finished_callback= finished_callback)
 
 
 
 
 def startRecording(event):
-    print("button start")
+    #add logic to prevent more audio while translation is in progress?
+    #or seperate it into a queue?
+    if stream.active:
+        print("stream is already active")
+        return
+    
+    stream.start()
+    print("started audio recording")
+
+
+    
+
+    
 
 def stopRecording(event):
-    print("button stop")
+    if not stream.active:
+        print("stream is already inactive")
+        return
+    
+    stream.stop()
+    print("recording stopped")
+
+    #method to translate here and output result
+    #or maybe just put it in the finished callback? altho might conflict with queue
+
+    
 
 
 #creates window for user input
