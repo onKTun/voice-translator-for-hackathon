@@ -12,18 +12,21 @@ install ffmopeg
 '''
 import sounddevice as sd
 import sys
-import wave
+import threading
 import tkinter
-import numpy
+import numpy as np
 from queue import Queue
+
+import audio_processing as magic
 
 
 CHUNK = 1024 #how many frames are in one chunk
 #FORMAT = 
 CHANNELS = 1 if sys.platform == 'darwin' else 2
-RATE = 44100
+RATE = 16000
 RECORD_SECONDS = 5
 
+sd.default.samplerate = RATE
 
 translationQueue = Queue(maxsize=5)
 audioQueue = Queue()
@@ -36,17 +39,26 @@ def callback(indata, outdata, frames, time, status):
     if status:
         print(status)
 
-    
-
+    #continuously records audio until stopped, to be processed later into a single numpy array
     audioQueue.put(indata.copy())
 
 def finished_callback():
-    print(audioQueue.get())
+    #combining audio chunks into one array
+    audioNdArray = audioQueue.get()
+
+    while not audioQueue.empty():
+
+        audioNdArray = np.r_[audioNdArray, audioQueue.get()]
+
+    audioNdArray = audioNdArray.flatten().astype(np.float32)
+    #put audio in for translation
+    translationQueue.put(audioNdArray)
+    #print(translationQueue.get().dtype)
+    magic.transcribe(translationQueue.get())
+
 
 #audio stream (change to input only)
 stream = sd.Stream(callback = callback, finished_callback= finished_callback)
-
-
 
 
 def startRecording(event):
@@ -57,12 +69,7 @@ def startRecording(event):
         return
     
     stream.start()
-    print("started audio recording")
-
-
-    
-
-    
+    print("started audio recording") 
 
 def stopRecording(event):
     if not stream.active:
@@ -76,8 +83,6 @@ def stopRecording(event):
     #or maybe just put it in the finished callback? altho might conflict with queue
 
     
-
-
 #creates window for user input
 
 window = tkinter.Tk()
@@ -93,7 +98,7 @@ button.bind('<ButtonRelease-1>',stopRecording)
 
 window.mainloop()
 
-
+#rejoin thread
 
 
 
